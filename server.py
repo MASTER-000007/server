@@ -6,18 +6,33 @@ PORT = int(os.environ.get("PORT", 10000))
 
 clients = set()
 
-async def handler(websocket, path):
-    print("✅ New client connected")
+async def handler(websocket):
+    print("✅ Client connected")
     clients.add(websocket)
+
     try:
         async for message in websocket:
-            print("Received:", message)
+            print("📩 Received:", message)
+
+            # broadcast safely
+            dead_clients = []
             for client in clients:
-                await client.send(message)   # send to ALL (including sender)
-    except:
-        print("Client disconnected")
+                try:
+                    await client.send(message)
+                except:
+                    dead_clients.append(client)
+
+            # remove dead clients
+            for dc in dead_clients:
+                clients.remove(dc)
+
+    except Exception as e:
+        print("❌ Error:", e)
+
     finally:
-        clients.remove(websocket)
+        print("🔌 Client disconnected")
+        if websocket in clients:
+            clients.remove(websocket)
 
 async def main():
     async with websockets.serve(handler, "0.0.0.0", PORT):
