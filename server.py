@@ -14,11 +14,12 @@ async def handler(websocket, path):
         async for message in websocket:
             print("📩 Received:", message)
 
-            # broadcast to all clients safely
-            await asyncio.gather(
-                *[client.send(message) for client in clients if client.open],
-                return_exceptions=True
-            )
+            # send one by one (VERY IMPORTANT FIX)
+            for client in list(clients):
+                try:
+                    await client.send(message)
+                except:
+                    clients.remove(client)
 
     except Exception as e:
         print("❌ Error:", e)
@@ -32,7 +33,7 @@ async def main():
         handler,
         "0.0.0.0",
         PORT,
-        ping_interval=None,   # 🔥 DISABLE ping timeout
+        ping_interval=None
     ):
         print("🚀 Server running...")
         await asyncio.Future()
