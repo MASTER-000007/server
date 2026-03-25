@@ -1,8 +1,9 @@
 import socket
 import threading
+import os
 
 HOST = '0.0.0.0'
-PORT = 10000
+PORT = int(os.environ.get("PORT", 10000))
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((HOST, PORT))
@@ -11,39 +12,59 @@ server.listen()
 clients = []
 usernames = []
 
+print("🚀 Server running...")
+
 def broadcast(message):
     for client in clients:
-        client.send(message)
+        try:
+            client.send(message)
+        except:
+            remove_client(client)
+
+def remove_client(client):
+    if client in clients:
+        index = clients.index(client)
+        clients.remove(client)
+        username = usernames[index]
+        usernames.remove(username)
+        broadcast(f"{username} left the chat!".encode())
+        client.close()
 
 def handle(client):
     while True:
         try:
             message = client.recv(1024)
+            if not message:
+                remove_client(client)
+                break
             broadcast(message)
         except:
-            index = clients.index(client)
-            clients.remove(client)
-            client.close()
-            username = usernames[index]
-            broadcast(f"{username} left!".encode())
-            usernames.remove(username)
+            remove_client(client)
             break
 
 def receive():
     while True:
         client, address = server.accept()
-        print(f"Connected with {address}")
+        print(f"✅ Connected with {address}")
 
-        client.send("USERNAME".encode())
-        username = client.recv(1024).decode()
+        try:
+            client.send("USERNAME".encode())
+            username = client.recv(1024).decode()
 
-        usernames.append(username)
-        clients.append(client)
+            if not username:
+                client.close()
+                continue
 
-        broadcast(f"{username} joined!".encode())
+            usernames.append(username)
+            clients.append(client)
 
-        thread = threading.Thread(target=handle, args=(client,))
-        thread.start()
+            print(f"👤 {username} joined")
+            broadcast(f"👤 {username} joined the chat!".encode())
 
-print("Server running...")
+            thread = threading.Thread(target=handle, args=(client,))
+            thread.start()
+
+        except:
+            client.close()
+
 receive()
