@@ -4,29 +4,44 @@ import os
 
 PORT = int(os.environ.get("PORT", 10000))
 
-clients = set()
+clients = {}
+# websocket → username
+
+async def broadcast_users():
+    users = ",".join(clients.values())
+    message = f"__USERS__:{users}"
+    for client in clients:
+        await client.send(message)
 
 async def handler(websocket, path):
     print("✅ Client connected")
-    clients.add(websocket)
 
     try:
+        # first message = username
+        username = await websocket.recv()
+        clients[websocket] = username
+
+        print(f"👤 {username} joined")
+
+        await broadcast_users()
+
         async for message in websocket:
-            print("📩 Received:", message)
+            print("📩", message)
 
-            # send one by one (VERY IMPORTANT FIX)
-            for client in list(clients):
-                try:
-                    await client.send(message)
-                except:
-                    clients.remove(client)
+            for client in clients:
+                await client.send(message)
 
-    except Exception as e:
-        print("❌ Error:", e)
+    except:
+        pass
 
     finally:
-        print("🔌 Client disconnected")
-        clients.discard(websocket)
+        username = clients.get(websocket, "Unknown")
+        print(f"🔌 {username} disconnected")
+
+        if websocket in clients:
+            del clients[websocket]
+
+        await broadcast_users()
 
 async def main():
     async with websockets.serve(
