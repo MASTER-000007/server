@@ -14,9 +14,10 @@ async def handler(websocket, path):
         async for message in websocket:
             print("📩 Received:", message)
 
-            # broadcast to all clients
+            # broadcast to all clients safely
             await asyncio.gather(
-                *[client.send(message) for client in clients]
+                *[client.send(message) for client in clients if client.open],
+                return_exceptions=True
             )
 
     except Exception as e:
@@ -24,10 +25,15 @@ async def handler(websocket, path):
 
     finally:
         print("🔌 Client disconnected")
-        clients.remove(websocket)
+        clients.discard(websocket)
 
 async def main():
-    async with websockets.serve(handler, "0.0.0.0", PORT):
+    async with websockets.serve(
+        handler,
+        "0.0.0.0",
+        PORT,
+        ping_interval=None,   # 🔥 DISABLE ping timeout
+    ):
         print("🚀 Server running...")
         await asyncio.Future()
 
